@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JMRT Report</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 16px; }
+    h1 { margin: 0 0 8px 0; font-size: 22px; }
+    .muted { color: #666; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-top: 1px solid #eee; padding: 10px; font-size: 14px; text-align: left; vertical-align: top; }
+    .sev { font-weight: 600; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; }
+    .sev-PASS { }
+    .sev-INFO { }
+    .sev-WARN { }
+    .sev-FAIL { }
+    .sev-BLOCKER { }
+  </style>
+</head>
+<body>
+  <h1>Jira Migration Readiness Report</h1>
+  <div class="muted">
+    Target: <b>{{ report.target }}</b> · Generated: <b>{{ report.generated_at }}</b>
+  </div>
+
+  <div class="row" style="margin-top:16px;">
+    <div class="card">
+      <h2 style="margin:0 0 8px 0; font-size:18px;">Checks overview</h2>
+      <canvas id="checksChart" height="140"></canvas>
+      <div class="muted" style="margin-top:10px;">
+        PASS={{ report.summary.pass_count }},
+        INFO={{ report.summary.info_count }},
+        WARN={{ report.summary.warn_count }},
+        FAIL={{ report.summary.fail_count }},
+        BLOCKER={{ report.summary.blocker_count }}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 8px 0; font-size:18px;">Executive summary</h2>
+      <p style="margin:0;">
+        This report lists readiness checks for Jira DC → Cloud migration. Focus on <b>BLOCKER</b> and <b>FAIL</b> first.
+      </p>
+      <ul class="muted" style="margin-top:10px;">
+        <li>Use this as an assessment artifact (customer-facing)</li>
+        <li>Run repeatedly after remediation (“before/after”)</li>
+        <li>Can later be integrated into CI/CD</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 style="margin:0 0 8px 0; font-size:18px;">Detailed checks</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:140px;">ID</th>
+          <th style="width:110px;">Severity</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in report.checks %}
+        <tr>
+          <td>
+            <span class="pill">{{ c.id }}</span>
+            <div class="muted">{{ c.title }}</div>
+          </td>
+          <td class="sev sev-{{ c.severity }}">{{ c.severity }}</td>
+          <td>
+            <div>{{ c.message }}</div>
+            {% if c.affected and c.affected|length > 0 %}
+              <div class="muted">Affected: {{ c.affected | join(", ") }}</div>
+            {% endif %}
+            {% if c.remediation %}
+              <div class="muted">Remediation: {{ c.remediation }}</div>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+  <script>
+    const summary = {{ summary_json | safe }};
+
+    new Chart(document.getElementById("checksChart"), {
+      type: "bar",
+      data: {
+        labels: ["PASS", "INFO", "WARN", "FAIL", "BLOCKER"],
+        datasets: [{
+          label: "Checks",
+          data: [
+            summary.pass_count,
+            summary.info_count,
+            summary.warn_count,
+            summary.fail_count,
+            summary.blocker_count
+          ],
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  </script>
+</body>
+</html>
