@@ -14,6 +14,7 @@ class ProjectCFConfiguredSignals:
     name: str
     project_type: str
     configured_custom_fields_count: int
+    configured_custom_field_ids: List[str]
 
 
 class CFConfiguredCollector:
@@ -50,6 +51,24 @@ class CFConfiguredCollector:
         fields = self._extract_fields_list(data)
         return len(fields)
 
+    def get_configured_custom_field_ids(self, project_id: str) -> List[str]:
+        data = self.client._request(
+            "GET",
+            "/customFields",
+            params={"projectIds": project_id},
+        )
+        fields = self._extract_fields_list(data)
+
+        ids: List[str] = []
+        for f in fields:
+            fid = f.get("id") or f.get("fieldId")
+            if fid:
+                ids.append(str(fid))
+
+        # keep only real custom fields
+        ids = [x for x in ids if x.startswith("customfield_")]
+        return ids
+
     def collect(self, limit_projects: Optional[int] = None) -> List[ProjectCFConfiguredSignals]:
         projects = self.get_projects()
         if limit_projects:
@@ -70,9 +89,11 @@ class CFConfiguredCollector:
 
             # Default if endpoint is blocked/unstable
             configured_custom_fields_count = 0
+            configured_ids: List[str] = []
 
             try:
-                configured_custom_fields_count = self.get_configured_custom_fields_count(str(pid))
+                configured_custom_fields_count = self.get_configured_custom_fields_count(
+                    str(pid))
             except Exception:
                 pass
 
@@ -82,6 +103,7 @@ class CFConfiguredCollector:
                     name=name,
                     project_type=ptype,
                     configured_custom_fields_count=configured_custom_fields_count,
+                    configured_custom_field_ids=configured_ids,
                 )
             )
 

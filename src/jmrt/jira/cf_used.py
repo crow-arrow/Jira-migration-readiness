@@ -108,12 +108,13 @@ class CFUsedCollector:
             used_ids: Set[str] = set()
 
             try:
-                issues_total, sample_effective, used_ids = self.collect_project_usage(key, sample_size=sample_size)
+                issues_total, sample_effective, used_ids = self.collect_project_usage(
+                    key, sample_size=sample_size)
             except Exception:
                 # degrade gracefully
                 pass
 
-            used_list = sorted(list(used_ids))[:max_field_ids_in_report]
+            used_list = sorted(list(used_ids))
 
             results.append(
                 ProjectCFUsedSignals(

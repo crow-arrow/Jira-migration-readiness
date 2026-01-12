@@ -7,18 +7,30 @@
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-    .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 16px; }
+    .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 16px; background: #fff; }
     h1 { margin: 0 0 8px 0; font-size: 22px; }
     .muted { color: #666; font-size: 13px; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; }
     th, td { border-top: 1px solid #eee; padding: 10px; font-size: 14px; text-align: left; vertical-align: top; }
     .sev { font-weight: 600; }
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; background: #fafafa; }
     .sev-PASS { }
     .sev-INFO { }
     .sev-WARN { }
     .sev-FAIL { }
     .sev-BLOCKER { }
+
+    /* Added: TOC + accordion helpers */
+    .toc a { color: inherit; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    details { border: 1px solid #eee; border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: #fff; }
+    summary { cursor: pointer; font-weight: 600; }
+    summary::-webkit-details-marker { display: none; }
+    .kv { display:grid; grid-template-columns: 180px 1fr; gap: 8px 12px; margin-top: 10px; }
+    .kv div { font-size: 13px; color:#333; }
+    .kv .k { color:#666; }
+    .small { font-size: 12px; color:#666; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
 </head>
 <body>
@@ -53,6 +65,17 @@
     </div>
   </div>
 
+  <!-- Added: Navigation / TOC -->
+  <div class="card toc" style="margin-top:16px;">
+    <h2 style="margin:0 0 8px 0; font-size:18px;">Navigation</h2>
+    <div class="small">Jump to a check:</div>
+    <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;">
+      {% for c in report.checks %}
+        <a class="pill" href="#check-{{ c.id }}">{{ c.id }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="card" style="margin-top:16px;">
     <h2 style="margin:0 0 8px 0; font-size:18px;">Detailed checks</h2>
     <table>
@@ -65,7 +88,7 @@
       </thead>
       <tbody>
       {% for c in report.checks %}
-        <tr>
+        <tr id="check-{{ c.id }}">
           <td>
             <span class="pill">{{ c.id }}</span>
             <div class="muted">{{ c.title }}</div>
@@ -73,12 +96,73 @@
           <td class="sev sev-{{ c.severity }}">{{ c.severity }}</td>
           <td>
             <div>{{ c.message }}</div>
-            {% if c.affected and c.affected|length > 0 %}
-              <div class="muted">Affected: {{ c.affected | join(", ") }}</div>
-            {% endif %}
-            {% if c.remediation %}
-              <div class="muted">Remediation: {{ c.remediation }}</div>
-            {% endif %}
+
+            <details>
+              <summary>Show details</summary>
+
+              <div class="kv">
+                <div class="k">ID</div><div class="mono">{{ c.id }}</div>
+                <div class="k">Title</div><div>{{ c.title }}</div>
+                <div class="k">Severity</div><div class="sev sev-{{ c.severity }}">{{ c.severity }}</div>
+
+                {% if c.affected and c.affected|length > 0 %}
+                  <div class="k">Affected</div><div class="mono">{{ c.affected | join(", ") }}</div>
+                {% endif %}
+
+                {% if c.remediation %}
+                  <div class="k">Remediation</div><div>{{ c.remediation }}</div>
+                {% endif %}
+              </div>
+
+              {% if c.id == "CF_DUPLICATES" and c.details and c.details.groups %}
+                <div style="margin-top:12px;">
+                  <div class="small">Duplicate groups (top 20)</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Group</th>
+                        <th>Canonical</th>
+                        <th>Candidates</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for g in c.details.groups[:20] %}
+                        <tr>
+                          <td class="mono">{{ g.normalized_name }}</td>
+                          <td>
+                            <div class="mono">{{ g.canonical.field_id }}</div>
+                            <div class="small">{{ g.canonical.field_name }}</div>
+                            <div class="small">cfg={{ g.canonical.configured_projects_count }}, hits={{ g.canonical.usage_hits }}</div>
+                          </td>
+                          <td class="small">
+                            {% for cand in g.candidates[:5] %}
+                              <div class="mono">
+                                {{ cand.field_id }}
+                                · score={{ cand.score_vs_canonical }}
+                                · {{ cand.pair_category }}
+                                {% if cand.remove_candidate %} · REMOVE{% endif %}
+                              </div>
+                            {% endfor %}
+                            {% if g.candidates|length > 5 %}
+                              <div class="small">+{{ g.candidates|length - 5 }} more</div>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+
+                  <details style="margin-top:10px;">
+                    <summary>Show all duplicate groups ({{ c.details.groups|length }})</summary>
+                    <pre class="small" style="white-space:pre-wrap; margin:6px 0 0 0;">{{ c.details | tojson(indent=2) }}</pre>
+                  </details>
+                </div>
+
+              {% elif c.details %}
+                <div class="small" style="margin-top:10px;">Raw details (JSON)</div>
+                <pre class="small" style="white-space:pre-wrap; margin:6px 0 0 0;">{{ c.details | tojson(indent=2) }}</pre>
+              {% endif %}
+            </details>
           </td>
         </tr>
       {% endfor %}
